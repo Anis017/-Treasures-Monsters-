@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Treasures & Monsters (Advanced)</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            text-align: center;
+            margin: 20px;
+            background-color: #000;
+            color: #fff;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        #info, #shop {
+            margin-bottom: 15px;
+            font-size: 16px;
+            background-color: #000;
+            padding: 5px;
+        }
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(11, 40px);
+            gap: 1px;
+            margin: 0 auto;
+            width: fit-content;
+            background-color: #000;
+            padding: 5px;
+            border: 1px solid #fff;
+            font-size: 18px;
+        }
+        .cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+            border: 1px solid #fff;
+        }
+        .hero {
+            color: #0f0; /* Vert pour le héros */
+        }
+        .monster {
+            color: #f00; /* Rouge pour les monstres */
+        }
+        .legendary {
+            color: #f0f; /* Violet pour le monstre légendaire */
+        }
+        .treasure {
+            color: #ff0; /* Jaune pour les trésors */
+        }
+        .empty {
+            color: #fff; /* Blanc pour les espaces vides */
+        }
+        .controls, .shop-controls {
+            margin-top: 15px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            font-size: 14px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        #message, #shopMessage {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #ff0;
+        }
+        #inputMove {
+            margin: 10px;
+            padding: 5px;
+            font-size: 14px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Treasures & Monsters (Advanced)</h1>
+    <div id="info"></div>
+    <div id="grid"></div>
+    <div class="controls">
+        <button onclick="move('left')">Left (l)</button>
+        <button onclick="move('right')">Right (r)</button>
+        <button onclick="move('down')">Down (d)</button>
+        <button onclick="move('hint')" id="hintBtn">Hint</button>
+        <button onclick="restartGame()">Restart</button>
+        <input type="text" id="inputMove" placeholder="Enter l/r/d or hint" onkeypress="if(event.key === 'Enter') move(this.value.toLowerCase().trim());">
+    </div>
+    <div id="message"></div>
+    <div id="shop" style="display: none;">
+        <h2>Shop (Treasures: <span id="treasureCount"></span>)</h2>
+        <button onclick="buyHealth()">Buy Health (+20) - 50 Treasures</button>
+        <button onclick="buyArmor()">Buy Armor (Reduce Damage by 50%) - 100 Treasures</button>
+        <button onclick="buyHint()">Buy Hint - 75 Treasures</button>
+        <button onclick="exitShop()">Exit Shop</button>
+        <div id="shopMessage"></div>
+    </div>
+
+    <script>
+        // --- Original Algorithms (Maintaining Algorithms.java Structure) ---
+        const rng = Math;
+
+        const GT = {
+            NUM_MONSTERS_PER_ROW: 2,
+            NUM_TREASURES_PER_ROW: 2,
+            MAX_TREASURE_VALUE: 99,
+            MAX_MONSTER_VALUE: 50,
+            EMPTY_SPACE: 0,
+
+            generateMonstersAndTreasures(monsters, treasures) {
+                if (monsters.length !== 14 || treasures.length !== 14 || monsters[0].length !== 11 || treasures[0].length !== 11) {
+                    throw new Error("Level dimensions must be 14x11");
+                }
+                for (let i = 0; i < monsters.length; i++) {
+                    let monsterCount = 0, treasureCount = 0, totalMonsterValue = 0, totalTreasureValue = 0;
+                    for (let j = 0; j < monsters[i].length; j++) {
+                        const randomValue = rng.random();
+                        if (randomValue < 1 / 6 && treasureCount < this.NUM_TREASURES_PER_ROW) {
+                            treasures[i][j] = Math.floor(rng.random() * this.MAX_TREASURE_VALUE) + 1;
+                            totalTreasureValue += treasures[i][j];
+                            treasureCount++;
+                        } else if (randomValue < 0.5 && monsterCount < monsters[i].length) {
+                            monsters[i][j] = Math.floor(rng.random() * this.MAX_MONSTER_VALUE) + 1;
+                            totalMonsterValue += monsters[i][j];
+                            monsterCount++;
+                        } else {
+                            monsters[i][j] = this.EMPTY_SPACE;
+                            treasures[i][j] = this.EMPTY_SPACE;
+                        }
+                    }
+                    while (monsterCount < this.NUM_MONSTERS_PER_ROW) {
+                        const j = Math.floor(rng.random() * monsters[i].length);
+                        if (monsters[i][j] === this.EMPTY_SPACE && treasures[i][j] === this.EMPTY_SPACE) {
+                            monsters[i][j] = Math.floor(rng.random() * this.MAX_MONSTER_VALUE) + 1;
+                            totalMonsterValue += monsters[i][j];
+                            monsterCount++;
+                        }
+                    }
+                    while (totalTreasureValue > totalMonsterValue) {
+                        const j = Math.floor(rng.random() * monsters[i].length);
+                        if (treasures[i][j] > 0) {
+                            totalTreasureValue -= treasures[i][j];
+                            treasures[i][j] = this.EMPTY_SPACE;
+                            treasureCount--;
+                        }
+                    }
+                    while (treasureCount > this.NUM_TREASURES_PER_ROW) {
+                        const j = Math.floor(rng.random() * monsters[i].length);
+                        if (treasures[i][j] > 0) {
+                            totalTreasureValue -= treasures[i][j];
+                            treasures[i][j] = this.EMPTY_SPACE;
+                            treasureCount--;
+                        }
+                    }
+                }
+                const startCol = Math.floor(monsters[0].length / 2);
+                monsters[0][startCol] = this.EMPTY_SPACE;
+                treasures[0][startCol] = this.EMPTY_SPACE;
+            },
+
+            getLevel() {
+                const monsters = Array(14).fill().map(() => Array(11).fill(0));
+                const treasures = Array(14).fill().map(() => Array(11).fill(0));
+                this.generateMonstersAndTreasures(monsters, treasures);
+                const combinedLevel = Array(14).fill().map(() => Array(11).fill(0));
+                for (let i = 0; i < 14; i++) {
+                    for (let j = 0; j < 11; j++) {
+                        if (treasures[i][j] > 0) combinedLevel[i][j] = treasures[i][j];
+                        else if (monsters[i][j] > 0) combinedLevel[i][j] = -monsters[i][j];
+                        else combinedLevel[i][j] = this.EMPTY_SPACE;
+                    }
+                }
+                return combinedLevel;
+            }
+        };
+
+        function sortLevel(monstersToSort, treasuresToSort) {
+            const rows = combineData(monstersToSort, treasuresToSort);
+            mergeSort(rows, 0, rows.length - 1);
+            const sortedMonsters = Array(14).fill().map(() => Array(11));
+            const sortedTreasures = Array(14).fill().map(() => Array(11));
+            for (let i = 0; i < rows.length; i++) {
+                const originalIndex = rows[i][2];
+                sortedMonsters[i] = monstersToSort[originalIndex].slice();
+                sortedTreasures[i] = treasuresToSort[originalIndex].slice();
+            }
+            for (let i = 0; i < monstersToSort.length; i++) {
+                monstersToSort[i] = sortedMonsters[i];
+                treasuresToSort[i] = sortedTreasures[i];
+            }
+        }
+
+        function combineData(monstersToSort, treasuresToSort) {
+            return monstersToSort.map((row, i) => [
+                row.reduce((sum, val) => sum + val, 0),
+                treasuresToSort[i].reduce((sum, val) => sum + val, 0),
+                i
+            ]);
+        }
+
+        function mergeSort(rows, left, right) {
+            if (left < right) {
+                const middle = Math.floor((left + right) / 2);
+                mergeSort(rows, left, middle);
+                mergeSort(rows, middle + 1, right);
+                merge(rows, left, middle, right);
+            }
+        }
+
+        function merge(rows, left, middle, right) {
+            const leftArray = rows.slice(left, middle + 1);
+            const rightArray = rows.slice(middle + 1, right + 1);
+            let i = 0, j = 0, k = left;
+            while (i < leftArray.length && j < rightArray.length) {
+                if ((leftArray[i][0] - leftArray[i][1]) >= (rightArray[j][0] - rightArray[j][1])) {
+                    rows[k++] = leftArray[i++];
+                } else {
+                    rows[k++] = rightArray[j++];
+                }
+            }
+            while (i < leftArray.length) rows[k++] = leftArray[i++];
+            while (j < rightArray.length) rows[k++] = rightArray[j++];
+        }
+
+        const GS = {
+            greedySolution(state) {
+                const originalPos = state.heroPos.slice();
+                const originalHealth = state.heroHealth;
+                let score = 0;
+                while (state.heroPos[1] < state.monsters.length - 1 && state.heroHealth > 0) {
+                    let bestScore = -Infinity, bestDirection = "down";
+                    const tempPos = state.heroPos.slice();
+                    const tempHealth = state.heroHealth;
+                    for (const dir of ["left", "right", "down"]) {
+                        const newPos = tempPos.slice();
+                        if (this.canMove(state, dir, newPos)) {
+                            state.heroPos = newPos;
+                            state.heroHealth = tempHealth;
+                            const moveScore = this.exploreGreedySolution(state, 1);
+                            if (moveScore > bestScore) {
+                                bestScore = moveScore;
+                                bestDirection = dir;
+                            }
+                        }
+                    }
+                    state.heroPos = tempPos.slice();
+                    state.heroHealth = tempHealth;
+                    this.move(state, bestDirection);
+                    score += state.treasures[state.heroPos[0]][state.heroPos[1]];
+                    state.heroHealth -= state.monsters[state.heroPos[0]][state.heroPos[1]];
+                }
+                state.heroPos = originalPos;
+                state.heroHealth = originalHealth;
+                return score + state.heroHealth;
+            },
+
+            exploreGreedySolution(state, depth) {
+                if (depth >= 5 || state.heroPos[1] >= state.monsters.length - 1 || state.heroHealth <= 0) {
+                    return state.treasures[state.heroPos[0]][state.heroPos[1]] - state.monsters[state.heroPos[0]][state.heroPos[1]];
+                }
+                let bestScore = -Infinity;
+                const tempPos = state.heroPos.slice();
+                const tempHealth = state.heroHealth;
+                for (const dir of ["left", "right", "down"]) {
+                    const newPos = tempPos.slice();
+                    if (this.canMove(state, dir, newPos)) {
+                        state.heroPos = newPos;
+                        state.heroHealth = tempHealth - state.monsters[newPos[0]][newPos[1]];
+                        const score = state.treasures[newPos[0]][newPos[1]] + this.exploreGreedySolution(state, depth + 1);
+                        bestScore = Math.max(bestScore, score);
+                        state.heroPos = tempPos.slice();
+                        state.heroHealth = tempHealth;
+                    }
+                }
+                return bestScore === -Infinity ? 0 : bestScore;
+            },
+
+            canMove(state, direction, pos) {
+                const row = pos[1], col = pos[0];
+                if (direction === "left" && col > 0 && (state.lastDirection === "down" || state.lastDirection === "left")) {
+                    pos[0]--;
+                    return true;
+                } else if (direction === "right" && col < state.monsters[0].length - 1 && (state.lastDirection === "down" || state.lastDirection === "right")) {
+                    pos[0]++;
+                    return true;
+                } else if (direction === "down" && row < state.monsters.length - 1) {
+                    pos[1]++;
+                    return true;
+                }
+                return false;
+            },
+
+            move(state, direction) {
+                switch (direction) {
+                    case "left": state.heroPos[0]--; break;
+                    case "right": state.heroPos[0]++; break;
+                    case "down": state.heroPos[1]++; break;
+                }
+                state.lastDirection = direction;
+            }
+        };
+
+        const DP = {
+            perfectSolution(state) {
+                const rows = state.monsters.length, cols = state.monsters[0].length;
+                const dp = Array(rows).fill().map(() => Array(cols).fill().map(() => [-Infinity, -Infinity]));
+                const path = Array(rows).fill().map(() => Array(cols).fill().map(() => ["", ""]));
+                const startRow = state.heroPos[1], startCol = state.heroPos[0];
+                dp[startRow][startCol][0] = state.heroHealth;
+                dp[startRow][startCol][1] = state.heroHealth;
+
+                for (let row = startRow; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        for (let dir = 0; dir < 2; dir++) {
+                            if (dp[row][col][dir] === -Infinity) continue;
+                            const currentHealth = dp[row][col][dir];
+                            const treasure = state.treasures[row][col];
+                            const damage = state.monsters[row][col];
+                            const score = currentHealth + treasure - damage;
+                            if (row + 1 < rows && score > 0) {
+                                if (score > dp[row + 1][col][0]) {
+                                    dp[row + 1][col][0] = score;
+                                    path[row + 1][col][0] = path[row][col][dir] + "down ";
+                                }
+                                if (score > dp[row + 1][col][1]) {
+                                    dp[row + 1][col][1] = score;
+                                    path[row + 1][col][1] = path[row][col][dir] + "down ";
+                                }
+                            }
+                            if (dir === 0 && col > 0 && score > 0) {
+                                if (score > dp[row][col - 1][0]) {
+                                    dp[row][col - 1][0] = score;
+                                    path[row][col - 1][0] = path[row][col][dir] + "left ";
+                                }
+                            } else if (dir === 1 && col < cols - 1 && score > 0) {
+                                if (score > dp[row][col + 1][1]) {
+                                    dp[row][col + 1][1] = score;
+                                    path[row][col + 1][1] = path[row][col][dir] + "right ";
+                                }
+                            }
+                        }
+                    }
+                }
+                let maxScore = -Infinity, bestPath = "";
+                for (let col = 0; col < cols; col++) {
+                    for (let dir = 0; dir < 2; dir++) {
+                        if (dp[rows - 1][col][dir] > maxScore) {
+                            maxScore = dp[rows - 1][col][dir];
+                            bestPath = path[rows - 1][col][dir];
+                        }
+                    }
+                }
+                return bestPath.trim().split(" ");
+            }
+        };
+
+        class State {
+            constructor(monsters, treasures, heroPos, heroHealth, armor = 0) {
+                this.monsters = monsters;
+                this.treasures = treasures;
+                this.heroPos = heroPos;
+                this.heroHealth = heroHealth;
+                this.lastDirection = "down";
+                this.armor = armor; // Nouvelle propriété pour l'armure (réduction des dégâts)
+                this.killStreak = 0; // Compteur pour le multiplicateur de score
+                this.legendaryDefeated = false; // Suivre si le monstre légendaire est vaincu
+            }
+        }
+
+        // --- AdvancedAlgorithms (Extensions Optionnelles) ---
+        const AdvancedGT = {
+            ...GT, // Hérite des règles par défaut
+            generateMonstersAndTreasures(monsters, treasures) {
+                GT.generateMonstersAndTreasures(monsters, treasures);
+                // Ajouter un monstre légendaire (1 chance sur 5 par niveau après level 3)
+                if (levelNumber > 3 && Math.random() < 0.2) {
+                    const row = Math.floor(Math.random() * 14);
+                    const col = Math.floor(Math.random() * 11);
+                    if (monsters[row][col] === GT.EMPTY_SPACE && treasures[row][col] === GT.EMPTY_SPACE) {
+                        monsters[row][col] = 100; // Très résistant (force 100)
+                    }
+                }
+            }
+        };
+
+        const AdvancedGS = {
+            ...GS, // Hérite des règles par défaut
+            greedySolution(state) {
+                const score = GS.greedySolution(state);
+                // Ajouter une difficulté croissante après le niveau 5 (plus de monstres)
+                if (levelNumber > 5) {
+                    return Math.floor(score * 1.2); // Augmenter le score à battre
+                }
+                return score;
+            },
+
+            move(state, direction) {
+                GS.move(state, direction);
+                const damage = state.monsters[state.heroPos[0]][state.heroPos[1]] || 0;
+                const treasure = state.treasures[state.heroPos[0]][state.heroPos[1]] || 0;
+
+                // Gérer le monstre légendaire (si force = 100)
+                if (damage === 100) {
+                    if (state.heroHealth > damage * (1 - state.armor / 100)) {
+                        state.heroHealth -= damage * (1 - state.armor / 100);
+                        state.legendaryDefeated = true;
+                        // Doubler la valeur des trésors restants
+                        for (let i = 0; i < 14; i++) {
+                            for (let j = 0; j < 11; j++) {
+                                if (state.treasures[i][j] > 0) {
+                                    state.treasures[i][j] *= 2;
+                                }
+                            }
+                        }
+                        levelScore += treasure * 2; // Ajouter le trésor doublé
+                        totalScore += treasure * 2;
+                    } else {
+                        state.heroHealth = 0; // Le monstre légendaire tue si pas assez de santé
+                    }
+                } else {
+                    // Multiplicateur de score pour tuer des monstres consécutivement
+                    if (damage > 0) {
+                        state.killStreak++;
+                        if (state.killStreak >= 3) {
+                            levelScore += damage * 2; // Double le score pour chaque monstre après 3 consécutifs
+                            totalScore += damage * 2;
+                        } else {
+                            levelScore += damage; // Score normal pour les monstres
+                            totalScore += damage;
+                        }
+                    } else {
+                        state.killStreak = 0; // Réinitialiser si pas de monstre
+                    }
+                    // Appliquer l'armure (réduction des dégâts)
+                    state.heroHealth = Math.max(0, state.heroHealth - damage * (1 - state.armor / 100));
+                    levelScore += treasure;
+                    totalScore += treasure;
+                }
+            }
+        };
+
+        // --- Game Logic with Advanced Features ---
+        let state;
+        let totalScore = 0;
+        let hints = 0;
+        let levelNumber = 1;
+        let scoreToBeat = 0;
+        let levelScore = 0;
+        let treasuresCollected = 0; // Compter les trésors pour le magasin
+
+        function initializeLevel() {
+            const combinedLevel = AdvancedGT.getLevel(); // Utiliser AdvancedGT pour les monstres légendaires
+            const monsters = Array(14).fill().map(() => Array(11).fill(0));
+            const treasures = Array(14).fill().map(() => Array(11).fill(0));
+            for (let i = 0; i < 14; i++) {
+                for (let j = 0; j < 11; j++) {
+                    if (combinedLevel[i][j] > 0) treasures[i][j] = combinedLevel[i][j];
+                    else if (combinedLevel[i][j] < 0) monsters[i][j] = -combinedLevel[i][j];
+                }
+            }
+            sortLevel(monsters, treasures);
+            state = new State(monsters, treasures, [5, 0], Math.min(100, (state ? state.heroHealth : 100) + (levelNumber > 1 ? 50 : 0)), state ? state.armor : 0);
+            scoreToBeat = AdvancedGS.greedySolution(state); // Utiliser AdvancedGS pour ajuster le score
+            levelScore = 0;
+            state.killStreak = 0;
+            state.legendaryDefeated = false;
+            console.log(`New level initialized. Health: ${state.heroHealth}, Score to Beat: ${scoreToBeat}, Armor: ${state.armor}%`);
+            showShop(); // Afficher le magasin après chaque niveau
+        }
+
+        function move(direction) {
+            if (state.heroHealth <= 0) return;
+
+            if (direction === "hint" && hints > 0) {
+                // Limiter la puissance des indices : ne donner que les 3 premiers mouvements
+                const solution = AdvancedDP.perfectSolution(state).slice(0, 3);
+                document.getElementById("message").innerText = "Hint (partial, 3 moves): " + solution.join(", ");
+                hints--;
+                updateDisplay();
+                return;
+            }
+
+            const newPos = state.heroPos.slice();
+            if (AdvancedGS.canMove(state, direction, newPos)) {
+                AdvancedGS.move(state, direction);
+                const damage = state.monsters[state.heroPos[0]][state.heroPos[1]] || 0;
+                const treasure = state.treasures[state.heroPos[0]][state.heroPos[1]] || 0;
+                treasuresCollected += treasure; // Compter les trésors collectés
+
+                if (state.heroPos[1] === 13 && state.heroHealth > 0) {
+                    console.log(`Reached bottom row (13). Health: ${state.heroHealth}, Level Score: ${levelScore}, Score to Beat: ${scoreToBeat}`);
+                    if (levelScore + state.heroHealth > scoreToBeat) {
+                        hints++;
+                        document.getElementById("message").innerText = `Level ${levelNumber} completed! Beat the score! Score: ${levelScore}, Health: ${state.heroHealth}. Hint earned!`;
+                    } else {
+                        document.getElementById("message").innerText = `Level ${levelNumber} completed! Score: ${levelScore}, Health: ${state.heroHealth}`;
+                    }
+                    levelNumber++;
+                    initializeLevel(); // Avancer au niveau suivant
+                }
+                updateDisplay();
+            } else {
+                document.getElementById("message").innerText = "Invalid move! You can't go that way.";
+            }
+        }
+
+        const AdvancedDP = {
+            ...DP, // Hérite des règles par défaut
+            perfectSolution(state) {
+                return DP.perfectSolution(state); // Pas de changement pour maintenir les règles par défaut
+            }
+        };
+
+        function restartGame() {
+            totalScore = 0;
+            hints = 0;
+            levelNumber = 1;
+            levelScore = 0;
+            treasuresCollected = 0;
+            initializeLevel();
+            document.getElementById("message").innerText = "Game restarted!";
+            document.getElementById("shop").style.display = "none";
+            document.querySelectorAll("button:not(:last-child)").forEach(btn => btn.disabled = false);
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            document.getElementById("info").innerText = 
+                `Level: ${levelNumber} | Health: ${state.heroHealth} | Score: ${totalScore} | Hint: (${hints}) | To beat: ${scoreToBeat} | Armor: ${state.armor}%`;
+            const grid = document.getElementById("grid");
+            grid.innerHTML = "";
+            for (let i = 0; i < 14; i++) {
+                for (let j = 0; j < 11; j++) {
+                    const cell = document.createElement("div");
+                    cell.className = "cell";
+                    if (state.heroPos[0] === j && state.heroPos[1] === i) {
+                        cell.classList.add("hero");
+                        cell.innerText = "🧑";
+                    } else if (state.monsters[j][i] === 100) { // Monstre légendaire
+                        cell.classList.add("legendary");
+                        cell.innerText = `🦠100`;
+                    } else if (state.monsters[j][i] > 0) {
+                        cell.classList.add("monster");
+                        cell.innerText = `🦠${state.monsters[j][i]}`;
+                    } else if (state.treasures[j][i] > 0) {
+                        cell.classList.add("treasure");
+                        cell.innerText = `💎${state.treasures[j][i]}`;
+                    } else {
+                        cell.classList.add("empty");
+                        cell.innerText = ".";
+                    }
+                    grid.appendChild(cell);
+                }
+            }
+            document.getElementById("hintBtn").disabled = hints === 0;
+            if (state.heroHealth <= 0) {
+                document.getElementById("message").innerText = `Game Over! Final Score: ${totalScore}`;
+                document.querySelectorAll("button:not(:last-child)").forEach(btn => btn.disabled = true);
+            } else {
+                document.getElementById("message").innerText = "";
+            }
+            document.getElementById("treasureCount").innerText = treasuresCollected;
+        }
+
+        // --- Shop Logic ---
+        function showShop() {
+            document.getElementById("shop").style.display = "block";
+            document.querySelectorAll("button:not(#shop button)").forEach(btn => btn.disabled = true);
+        }
+
+        function exitShop() {
+            document.getElementById("shop").style.display = "none";
+            document.querySelectorAll("button:not(#shop button)").forEach(btn => btn.disabled = false);
+            document.getElementById("shopMessage").innerText = "";
+        }
+
+        function buyHealth() {
+            if (treasuresCollected >= 50) {
+                treasuresCollected -= 50;
+                state.heroHealth = Math.min(100, state.heroHealth + 20);
+                document.getElementById("shopMessage").innerText = "Bought Health (+20)!";
+                updateDisplay();
+            } else {
+                document.getElementById("shopMessage").innerText = "Not enough treasures (50 needed)!";
+            }
+        }
+
+        function buyArmor() {
+            if (treasuresCollected >= 100) {
+                treasuresCollected -= 100;
+                state.armor = Math.min(50, state.armor + 25); // Max 50% réduction
+                document.getElementById("shopMessage").innerText = `Bought Armor! Now reduces damage by ${state.armor}%.`;
+                updateDisplay();
+            } else {
+                document.getElementById("shopMessage").innerText = "Not enough treasures (100 needed)!";
+            }
+        }
+
+        function buyHint() {
+            if (treasuresCollected >= 75) {
+                treasuresCollected -= 75;
+                hints++;
+                document.getElementById("shopMessage").innerText = "Bought a Hint!";
+                updateDisplay();
+            } else {
+                document.getElementById("shopMessage").innerText = "Not enough treasures (75 needed)!";
+            }
+        }
+
+        // --- Boss Final (Après le niveau 10) ---
+        if (levelNumber === 10) {
+            AdvancedGT.generateMonstersAndTreasures = function(monsters, treasures) {
+                GT.generateMonstersAndTreasures(monsters, treasures);
+                const bossRow = 6; // Milieu de la grille
+                const bossCol = 5; // Milieu horizontal
+                monsters[bossRow][bossCol] = 200; // Boss très résistant
+                treasures[bossRow][bossCol] = 0; // Pas de trésor ici
+            };
+            AdvancedGS.move = function(state, direction) {
+                GS.move(state, direction);
+                const damage = state.monsters[state.heroPos[0]][state.heroPos[1]] || 0;
+                if (damage === 200) { // Boss final
+                    if (state.heroHealth > damage * (1 - state.armor / 100)) {
+                        state.heroHealth -= damage * (1 - state.armor / 100);
+                        levelScore += 1000; // Récompense énorme pour battre le boss
+                        totalScore += 1000;
+                        document.getElementById("message").innerText = "Boss defeated! Huge reward earned!";
+                    } else {
+                        state.heroHealth = 0;
+                    }
+                } else {
+                    // Logique normale pour les autres monstres
+                    state.heroHealth = Math.max(0, state.heroHealth - damage * (1 - state.armor / 100));
+                    const treasure = state.treasures[state.heroPos[0]][state.heroPos[1]] || 0;
+                    treasuresCollected += treasure;
+                    levelScore += treasure;
+                    totalScore += treasure;
+                    if (damage > 0) {
+                        state.killStreak++;
+                        if (state.killStreak >= 3) {
+                            levelScore += damage * 2;
+                            totalScore += damage * 2;
+                        } else {
+                            levelScore += damage;
+                            totalScore += damage;
+                        }
+                    } else {
+                        state.killStreak = 0;
+                    }
+                }
+            };
+        }
+
+        // --- Start Game ---
+        initializeLevel();
+        updateDisplay();
+    </script>
+</body>
+</html>
